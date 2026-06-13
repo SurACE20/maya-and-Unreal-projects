@@ -1,0 +1,546 @@
+import maya.cmds as cmds
+
+# =========================================================
+# FINAL MAYA RACING CAR PROJECT
+# PROFESSIONAL SUBMISSION VERSION
+# =========================================================
+
+# FEATURES:
+# - Clean Racing Track
+# - Visible Racing Car
+# - Road Lane Markings
+# - Automatic Car Animation
+# - Follow Camera
+# - Lights
+# - Sky Background
+# - Play / Stop Controls
+# - Professional Scene Setup
+
+# =========================================================
+# HOW TO RUN
+# =========================================================
+#
+# 1. Open Maya
+# 2. Windows > General Editors > Script Editor
+# 3. Click PYTHON TAB
+# 4. Paste Full Code
+# 5. Press CTRL + ENTER
+#
+# =========================================================
+
+# =========================================================
+# RESET SCENE
+# =========================================================
+
+cmds.file(new=True, force=True)
+
+# =========================================================
+# GLOBALS
+# =========================================================
+
+CAR = "RaceCar"
+
+# =========================================================
+# TRACK POINTS
+# =========================================================
+
+trackPoints = [
+
+    (-140, 0, -120),
+    (-80, 0, -40),
+    (-20, 0, 40),
+    (60, 0, -20),
+    (140, 0, 80),
+    (60, 0, 160),
+    (-40, 0, 100),
+    (-120, 0, 200),
+    (-180, 0, 60),
+    (-140, 0, -120)
+
+]
+
+# =========================================================
+# CREATE MATERIAL
+# =========================================================
+
+def createMaterial(name, color):
+
+    shader = cmds.shadingNode(
+        "lambert",
+        asShader=True,
+        name=name
+    )
+
+    cmds.setAttr(
+        shader + ".color",
+        color[0],
+        color[1],
+        color[2],
+        type="double3"
+    )
+
+    sg = cmds.sets(
+        renderable=True,
+        noSurfaceShader=True,
+        empty=True,
+        name=name + "SG"
+    )
+
+    cmds.connectAttr(
+        shader + ".outColor",
+        sg + ".surfaceShader",
+        force=True
+    )
+
+    return sg
+
+# =========================================================
+# ENVIRONMENT
+# =========================================================
+
+def createEnvironment():
+
+    cmds.displayRGBColor(
+        'background',
+        0.55,
+        0.75,
+        1.0
+    )
+
+    # Ground
+    ground = cmds.polyPlane(
+        w=800,
+        h=800,
+        sx=1,
+        sy=1,
+        name="Ground"
+    )[0]
+
+    cmds.move(0, -0.5, 0)
+
+    grassMat = createMaterial(
+        "GrassMat",
+        (0.18, 0.55, 0.18)
+    )
+
+    cmds.select(ground)
+    cmds.sets(e=True, forceElement=grassMat)
+
+# =========================================================
+# ROAD TRACK
+# =========================================================
+
+def createRoadTrack():
+
+    roadMat = createMaterial(
+        "RoadMat",
+        (0.08, 0.08, 0.08)
+    )
+
+    lineMat = createMaterial(
+        "LineMat",
+        (1, 0.9, 0)
+    )
+
+    sideMat = createMaterial(
+        "SideMat",
+        (1, 0, 0)
+    )
+
+    for i in range(len(trackPoints)-1):
+
+        p1 = trackPoints[i]
+        p2 = trackPoints[i+1]
+
+        dx = p2[0] - p1[0]
+        dz = p2[2] - p1[2]
+
+        length = (dx**2 + dz**2) ** 0.5
+
+        midX = (p1[0] + p2[0]) / 2
+        midZ = (p1[2] + p2[2]) / 2
+
+        angle = cmds.angleBetween(
+            euler=True,
+            v1=(0,0,1),
+            v2=(dx,0,dz)
+        )[1]
+
+        # ROAD
+        road = cmds.polyCube(
+            w=26,
+            h=0.5,
+            d=length,
+            name="Road_" + str(i)
+        )[0]
+
+        cmds.move(midX, 0, midZ)
+        cmds.rotate(0, angle, 0)
+
+        cmds.select(road)
+        cmds.sets(e=True, forceElement=roadMat)
+
+        # CENTER LINE
+        line = cmds.polyCube(
+            w=1,
+            h=0.6,
+            d=length,
+            name="Line_" + str(i)
+        )[0]
+
+        cmds.move(midX, 0.35, midZ)
+        cmds.rotate(0, angle, 0)
+
+        cmds.select(line)
+        cmds.sets(e=True, forceElement=lineMat)
+
+        # LEFT BORDER
+        leftBorder = cmds.polyCube(
+            w=1,
+            h=1,
+            d=length,
+            name="LeftBorder_" + str(i)
+        )[0]
+
+        cmds.move(midX - 13, 0.5, midZ)
+        cmds.rotate(0, angle, 0)
+
+        cmds.select(leftBorder)
+        cmds.sets(e=True, forceElement=sideMat)
+
+        # RIGHT BORDER
+        rightBorder = cmds.polyCube(
+            w=1,
+            h=1,
+            d=length,
+            name="RightBorder_" + str(i)
+        )[0]
+
+        cmds.move(midX + 13, 0.5, midZ)
+        cmds.rotate(0, angle, 0)
+
+        cmds.select(rightBorder)
+        cmds.sets(e=True, forceElement=sideMat)
+
+# =========================================================
+# PATH CURVE
+# =========================================================
+
+def createPath():
+
+    cmds.curve(
+        d=3,
+        p=trackPoints,
+        name="RacePath"
+    )
+
+# =========================================================
+# CREATE CAR
+# =========================================================
+
+def createCar():
+
+    # BODY
+    body = cmds.polyCube(
+        w=10,
+        h=3,
+        d=18,
+        name="CarBody"
+    )[0]
+
+    # CABIN
+    cabin = cmds.polyCube(
+        w=7,
+        h=3,
+        d=8,
+        name="Cabin"
+    )[0]
+
+    cmds.move(0, 3, -2)
+
+    # SPOILER
+    spoiler = cmds.polyCube(
+        w=10,
+        h=0.5,
+        d=1,
+        name="Spoiler"
+    )[0]
+
+    cmds.move(0, 3.5, 8)
+
+    # HEADLIGHTS
+    leftLight = cmds.polyCube(
+        w=1,
+        h=1,
+        d=0.5,
+        name="LeftLight"
+    )[0]
+
+    cmds.move(-2.5, 1, -9)
+
+    rightLight = cmds.polyCube(
+        w=1,
+        h=1,
+        d=0.5,
+        name="RightLight"
+    )[0]
+
+    cmds.move(2.5, 1, -9)
+
+    wheels = []
+
+    wheelPositions = [
+
+        (5, -2, 6),
+        (-5, -2, 6),
+        (5, -2, -6),
+        (-5, -2, -6)
+
+    ]
+
+    for i, pos in enumerate(wheelPositions):
+
+        wheel = cmds.polyCylinder(
+            r=2,
+            h=2,
+            sx=20,
+            name="Wheel_" + str(i)
+        )[0]
+
+        cmds.rotate(90, 0, 0)
+
+        cmds.move(
+            pos[0],
+            pos[1],
+            pos[2]
+        )
+
+        wheels.append(wheel)
+
+    carParts = [
+
+        body,
+        cabin,
+        spoiler,
+        leftLight,
+        rightLight
+
+    ] + wheels
+
+    carGroup = cmds.group(
+        carParts,
+        name=CAR
+    )
+
+    cmds.move(
+        trackPoints[0][0],
+        5,
+        trackPoints[0][2],
+        carGroup
+    )
+
+    # MATERIALS
+    carMat = createMaterial(
+        "CarPaint",
+        (0, 0.3, 1)
+    )
+
+    wheelMat = createMaterial(
+        "WheelMat",
+        (0.05, 0.05, 0.05)
+    )
+
+    lightMat = createMaterial(
+        "LightMat",
+        (1, 1, 0.8)
+    )
+
+    cmds.select(body, cabin, spoiler)
+    cmds.sets(e=True, forceElement=carMat)
+
+    cmds.select(leftLight, rightLight)
+    cmds.sets(e=True, forceElement=lightMat)
+
+    for wheel in wheels:
+
+        cmds.select(wheel)
+        cmds.sets(e=True, forceElement=wheelMat)
+
+# =========================================================
+# CAMERA
+# =========================================================
+
+def createCamera():
+
+    if cmds.objExists("RaceCamera"):
+        cmds.delete("RaceCamera")
+
+    cam = cmds.camera(
+        name="RaceCamera"
+    )[0]
+
+    cmds.parent(cam, CAR)
+
+    cmds.move(0, 22, 45)
+
+    cmds.rotate(-20, 0, 0)
+
+    cmds.lookThru(cam)
+
+# =========================================================
+# LIGHTS
+# =========================================================
+
+def createLights():
+
+    cmds.directionalLight(
+        rotation=(-45, 45, 0),
+        intensity=1.3
+    )
+
+    cmds.ambientLight(
+        intensity=0.5
+    )
+
+# =========================================================
+# ANIMATION
+# =========================================================
+
+def animateCar():
+
+    cmds.playbackOptions(
+        min=1,
+        max=1440
+    )
+
+    motionPath = cmds.pathAnimation(
+        CAR,
+        c="RacePath",
+        fractionMode=True,
+        follow=True,
+        followAxis="z",
+        upAxis="y",
+        worldUpType="vector",
+        worldUpVector=(0,1,0),
+        bank=True,
+        startTimeU=1,
+        endTimeU=1440
+    )
+
+    cmds.keyTangent(
+        motionPath,
+        itt="linear",
+        ott="linear"
+    )
+
+# =========================================================
+# PLAY
+# =========================================================
+
+def playRace(*args):
+
+    cmds.currentTime(1)
+
+    cmds.play(forward=True)
+
+# =========================================================
+# STOP
+# =========================================================
+
+def stopRace(*args):
+
+    cmds.play(state=False)
+
+# =========================================================
+# CONTROL WINDOW
+# =========================================================
+
+def createControls():
+
+    if cmds.window("RaceControls", exists=True):
+        cmds.deleteUI("RaceControls")
+
+    window = cmds.window(
+        "RaceControls",
+        title="Final Maya Racing Game",
+        widthHeight=(320, 240)
+    )
+
+    cmds.columnLayout(adjustableColumn=True)
+
+    cmds.separator(h=20)
+
+    cmds.text(
+        label="FINAL MAYA RACING PROJECT",
+        height=40
+    )
+
+    cmds.separator(h=20)
+
+    cmds.button(
+        label="PLAY RACE",
+        h=70,
+        command=playRace
+    )
+
+    cmds.separator(h=10)
+
+    cmds.button(
+        label="STOP RACE",
+        h=70,
+        command=stopRace
+    )
+
+    cmds.showWindow(window)
+
+# =========================================================
+# BUILD SCENE
+# =========================================================
+
+def buildScene():
+
+    createEnvironment()
+
+    createRoadTrack()
+
+    createPath()
+
+    createCar()
+
+    createCamera()
+
+    createLights()
+
+    animateCar()
+
+    createControls()
+
+# =========================================================
+# START PROJECT
+# =========================================================
+
+buildScene()
+
+# =========================================================
+# VIEW FIX
+# =========================================================
+
+cmds.select(CAR)
+
+cmds.viewFit()
+
+# =========================================================
+# FINAL MESSAGE
+# =========================================================
+
+print("==========================================")
+print("FINAL MAYA RACING PROJECT READY")
+print("==========================================")
+print("HOW TO USE:")
+print("1. CLICK PLAY RACE")
+print("2. CAR DRIVES AUTOMATICALLY")
+print("3. CLICK STOP RACE TO STOP")
+print("==========================================")
+print("IF VIEW IS WRONG:")
+print("PRESS A IN VIEWPORT")
+print("==========================================")
